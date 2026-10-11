@@ -21,12 +21,14 @@ const dial = (args: string) => ({
 })
 
 /** Stands in for Claude Code's own /model and /effort, recording what ran. */
-const fakeEngine = (on: On) => {
+const fakeEngine = (on: On, beneath = '') => {
   const ran: string[] = []
   let model = 'claude-opus-5-5'
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.model', () => ({ value: model }))
   on('settings.read', () => ({ value: { effortLevel: 'high' } }))
+  // What renders under the band: empty, or another mod's band.
+  on('ui.render', () => ({ type: 'Text', children: [beneath] }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('command.run', { command: 'model' }, ($, e) => {
     ran.push(`/model ${e.args}`)
@@ -125,4 +127,13 @@ test('the row stacks on two rows when narrow', async ($, on) => {
   const narrow = await $.ui.mount({ ...band(67), surface: 'terminal' })
   expect(await narrow.find({ type: 'Text', text: '│' })).toBeUndefined()
   await narrow.unmount()
+})
+
+test('the band stacks over other mods\' bands instead of hiding them', async ($, on) => {
+  fakeEngine(on, 'mission control band')
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...band(120), surface: 'terminal' })
+  expect(await ui.find({ key: 'model-opus' })).toBeDefined()
+  expect(await ui.find({ text: 'mission control band' })).toBeDefined()
+  await ui.unmount()
 })

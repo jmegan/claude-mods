@@ -44,6 +44,14 @@ const NOTE_COLUMNS = 11
 
 type El = Pick<ElementTable, 'Box' | 'Text' | 'Button'>
 
+const isBlank = (tree: unknown): boolean => {
+  if (tree === null || tree === undefined) return true
+  if (typeof tree === 'string') return tree.trim() === ''
+  if (typeof tree !== 'object') return false
+  const { type, children } = tree as { type?: string; children?: unknown[] }
+  return (type === 'Text' || type === 'Box') && (children ?? []).every(isBlank)
+}
+
 const familyOf = (model: string | null): string | null =>
   model?.toLowerCase().match(/opus|sonnet|haiku|fable/)?.[0] ?? null
 
@@ -243,8 +251,10 @@ export const register: Register = (on, options) => {
     const hasNoteRoom = !isOneRow || e.props.bodyColumns >= rowColumns + NOTE_COLUMNS
     const isQueued = e.props.isWorking && hasNoteRoom && (d.pendingModel !== null || d.pendingEffort !== null)
 
-    return (
-      <Box flexDirection={isOneRow ? 'row' : 'column'} columnGap={2}>
+    // Other mods' bands render beneath this one; dropping next() would hide them.
+    const beneath = await next(e)
+    const mine = (
+      <Box key="model-dial" flexDirection={isOneRow ? 'row' : 'column'} columnGap={2}>
         <Box columnGap={1}>{modelChips(el, $, d, models)}</Box>
         {isOneRow && <Text dimColor>│</Text>}
         <Box columnGap={1}>
@@ -254,6 +264,7 @@ export const register: Register = (on, options) => {
         </Box>
       </Box>
     )
+    return isBlank(beneath) ? mine : <Box flexDirection="column">{mine}{beneath}</Box>
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
