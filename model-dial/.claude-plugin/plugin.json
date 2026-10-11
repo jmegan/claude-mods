@@ -1,0 +1,17 @@
+{
+  "name": "model-dial",
+  "version": "0.1.0",
+  "description": "A clickable model and effort switcher above the prompt, plus /dial for keyboard switching.",
+  "author": {
+    "name": "John Egan"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "models": {
+      "type": "string",
+      "title": "Models",
+      "description": "Comma-separated model aliases shown as chips, in order (for example opus,sonnet,haiku).",
+      "default": "opus,sonnet,haiku"
+    }
+  }
+}

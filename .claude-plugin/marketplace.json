@@ -1,0 +1,14 @@
+{
+  "name": "egan-mods",
+  "owner": {
+    "name": "John Egan"
+  },
+  "description": "John Egan's personal Claude Code mods.",
+  "plugins": [
+    {
+      "name": "model-dial",
+      "source": "./model-dial",
+      "description": "A clickable model and effort switcher above the prompt, plus /dial."
+    }
+  ]
+}
