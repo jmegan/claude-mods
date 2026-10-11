@@ -1,5 +1,9 @@
 import { expect, test } from 'claude-code/testing'
+import type { FoundElement } from 'claude-code/testing'
 import type { On } from 'claude-code'
+
+/** An active chip is the one drawn as a filled pill. */
+const isFilled = (chip: FoundElement | undefined): boolean => JSON.stringify(chip?.children ?? []).includes('backgroundColor')
 
 const band = (bodyColumns: number) => ({
   plugin: 'model-dial',
@@ -42,18 +46,21 @@ test('the band shows the live model and effort, and a press switches them', asyn
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...band(120), surface })
 
-    expect((await ui.find({ key: 'model-opus' }))?.text).toContain('Opus 5.5')
-    expect((await ui.find({ key: 'effort-high' }))?.text).toContain('high')
+    expect(isFilled(await ui.find({ key: 'model-opus' }))).toBe(true)
+    expect(isFilled(await ui.find({ key: 'effort-high' }))).toBe(true)
+    expect(isFilled(await ui.find({ key: 'model-sonnet' }))).toBe(false)
 
     await ui.press({ key: 'model-sonnet' })
     await ui.press({ key: 'effort-xhigh' })
 
-    expect((await ui.find({ key: 'model-sonnet' }))?.text).toContain('Sonnet 5.5')
-    expect((await ui.find({ key: 'effort-xhigh' }))?.props).toMatchObject({ plain: true })
+    // Labels keep their width on a switch, so the chips never move under the pointer.
+    expect((await ui.find({ key: 'model-sonnet' }))?.text).toBe(' Sonnet ')
+    expect(isFilled(await ui.find({ key: 'model-sonnet' }))).toBe(true)
+    expect(isFilled(await ui.find({ key: 'effort-xhigh' }))).toBe(true)
 
     await ui.press({ key: 'model-opus' })
     await ui.press({ key: 'effort-high' })
-    expect((await ui.find({ key: 'model-opus' }))?.text).toContain('Opus 5.5')
+    expect(isFilled(await ui.find({ key: 'model-opus' }))).toBe(true)
     await ui.unmount()
   }
   const pass = ['/model sonnet', '/effort xhigh', '/model opus', '/effort high']
@@ -67,10 +74,9 @@ test('/dial takes a model and an effort in one line', async ($, on) => {
   expect(out.text).toBe('Switching to Haiku · effort xhigh.')
   const ui = await $.ui.mount({ ...band(120), surface: 'terminal' })
   for (let i = 0; i < 500; i++) {
-    const chip = await ui.find({ key: 'model-haiku' })
-    if (chip?.text.includes('Haiku 5.5') && ran.length === 2) break
+    if (isFilled(await ui.find({ key: 'model-haiku' })) && ran.length === 2) break
   }
-  expect((await ui.find({ key: 'model-haiku' }))?.text).toContain('Haiku 5.5')
+  expect(isFilled(await ui.find({ key: 'model-haiku' }))).toBe(true)
   expect([...ran].sort()).toEqual(['/effort xhigh', '/model haiku'])
   await ui.unmount()
 })
@@ -89,4 +95,34 @@ test('the models option sets the chips', { options: { models: 'sonnet,haiku' } }
   expect(await ui.find({ key: 'model-opus' })).toBeUndefined()
   expect(await ui.find({ key: 'model-haiku' })).toBeDefined()
   await ui.unmount()
+})
+
+test('effort shows n/a while the live model sends no effort', async ($, on) => {
+  fakeEngine(on)
+  on('turn.step', async function* ($, e) {
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...band(120), surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: 'n/a' })).toBeUndefined()
+
+  const step = $.turn.step({ turnId: 't1', index: 0, model: 'claude-haiku-5-5', messageCount: 1 })
+  for await (const _ of step) void _
+  expect(await ui.find({ type: 'Text', text: 'n/a' })).toBeDefined()
+  expect(isFilled(await ui.find({ key: 'effort-high' }))).toBe(false)
+
+  await ui.press({ key: 'model-opus' })
+  expect(await ui.find({ type: 'Text', text: 'n/a' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the row stacks on two rows when narrow', async ($, on) => {
+  fakeEngine(on)
+  await $.session.start(START)
+  const wide = await $.ui.mount({ ...band(68), surface: 'terminal' })
+  expect(await wide.find({ type: 'Text', text: '│' })).toBeDefined()
+  await wide.unmount()
+  const narrow = await $.ui.mount({ ...band(67), surface: 'terminal' })
+  expect(await narrow.find({ type: 'Text', text: '│' })).toBeUndefined()
+  await narrow.unmount()
 })

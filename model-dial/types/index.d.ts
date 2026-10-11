@@ -6,6 +6,8 @@ export type Dial = {
   effort: Effort | null
   pendingModel: string | null
   pendingEffort: Effort | null
+  /** True once a main request went out with no effort: the live model ignores it. */
+  isEffortIgnored: boolean
 }
 
 declare module 'claude-code' {

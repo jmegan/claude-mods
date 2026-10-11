@@ -8,6 +8,7 @@ const dial = atom({ plugin: 'model-dial', key: 'dial' } as const, {
   effort: null,
   pendingModel: null,
   pendingEffort: null,
+  isEffortIgnored: false,
 })
 
 const PANE = 'model-dial'
@@ -36,8 +37,10 @@ const MODEL_BLURB: Record<string, string> = {
   fable: 'largest',
 }
 const CHIP_TEXT = '#1B1B1B'
-// Below this many columns the two controls stack on two rows.
-const ONE_ROW_COLUMNS = 80
+// Cells one row needs past the model chips: the separator, five effort chips with their
+// gaps, and `n/a` (plus 2 for a pending chip's `…`). The `after turn` note shows only if it fits.
+const EFFORT_COLUMNS = 5 + EFFORTS.reduce((n, level) => n + EFFORT_SHORT[level].length + 3, 0) + 4 + 2
+const NOTE_COLUMNS = 11
 
 type El = Pick<ElementTable, 'Box' | 'Text' | 'Button'>
 
@@ -77,7 +80,7 @@ const setModel = async ($: EngineInterface, alias: string): Promise<void> => {
     await $.command.run({ command: 'model', args: alias })
     // Our own command.run hook skips a run this plugin made, so read the result back here.
     const model = await $.session.model()
-    await update($, dial, d => ({ ...d, model, pendingModel: null }))
+    await update($, dial, d => ({ ...d, model, pendingModel: null, isEffortIgnored: false }))
   } catch (err) {
     await update($, dial, d => ({ ...d, pendingModel: null }))
     $.ui.toast(`model-dial: /model ${alias} failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -120,15 +123,12 @@ const Chip = (
     )
   }
   return (
-    <Button key={id} plain dimColor onPress={onPress}>
-      {` ${label} `}
+    <Button key={id} plain onPress={onPress}>
+      <Text color={ink} dimColor hover={{ scope: `chip-${id}`, dimColor: false, bold: true }}>
+        {` ${label} `}
+      </Text>
     </Button>
   )
-}
-
-const meter = (effort: Effort | null): string => {
-  const filled = effort === null ? 0 : EFFORTS.indexOf(effort) + 1
-  return '▰'.repeat(filled) + '▱'.repeat(EFFORTS.length - filled)
 }
 
 const modelChips = (el: El, $: EngineInterface, d: Dial, models: readonly string[]) => {
@@ -139,7 +139,7 @@ const modelChips = (el: El, $: EngineInterface, d: Dial, models: readonly string
     const isOn = live === family && pending === null
     return Chip(el, {
       id: `model-${alias}`,
-      label: isOn ? displayName(d.model) : titleCase(alias),
+      label: titleCase(alias),
       ink: MODEL_INK[family] ?? '#9A9A9A',
       isOn,
       isPending: pending === family && live !== family,
@@ -154,7 +154,7 @@ const effortChips = (el: El, $: EngineInterface, d: Dial) =>
       id: `effort-${level}`,
       label: EFFORT_SHORT[level],
       ink: EFFORT_INK[level],
-      isOn: d.effort === level && d.pendingEffort === null,
+      isOn: d.effort === level && d.pendingEffort === null && !d.isEffortIgnored,
       isPending: d.pendingEffort === level && d.effort !== level,
       onPress: () => void setEffort($, level),
     }),
@@ -185,7 +185,7 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'model' }, async ($, e, next) => {
     const out = await next(e)
     const model = await $.session.model()
-    await update($, dial, d => ({ ...d, model, pendingModel: null }))
+    await update($, dial, d => ({ ...d, model, pendingModel: null, isEffortIgnored: false }))
     return out
   }).catch(($, e, next) => next(e))
 
@@ -198,11 +198,13 @@ export const register: Register = (on, options) => {
     return out
   }).catch(($, e, next) => next(e))
 
-  // The first request of each main turn names the model and effort it really sends.
+  // The first request of each main turn names the model and effort it really sends;
+  // a request with no effort means the model ignores it.
   on('turn.step', async function* ($, e, next) {
     if (e.agentId === undefined && e.index === 0) {
       const effort = asEffort(e.effort)
-      await update($, dial, d => ({ ...d, model: e.model, effort: effort ?? d.effort }))
+      const isEffortIgnored = e.effort === undefined
+      await update($, dial, d => ({ ...d, model: e.model, effort: effort ?? d.effort, isEffortIgnored }))
     }
     return yield* next(e)
   })
@@ -235,21 +237,20 @@ export const register: Register = (on, options) => {
     const el = $.ui.resolve(e)
     const { Box, Text } = el
     const d = await read($, dial)
-    const isOneRow = e.props.bodyColumns >= ONE_ROW_COLUMNS
-    const isQueued = e.props.isWorking && (d.pendingModel !== null || d.pendingEffort !== null)
-    const effortInk = d.effort === null ? 'subtle' : EFFORT_INK[d.effort]
+    const modelColumns = models.reduce((n, alias) => n + alias.length + 3, 0)
+    const rowColumns = modelColumns + EFFORT_COLUMNS
+    const isOneRow = e.props.bodyColumns >= rowColumns
+    const hasNoteRoom = !isOneRow || e.props.bodyColumns >= rowColumns + NOTE_COLUMNS
+    const isQueued = e.props.isWorking && hasNoteRoom && (d.pendingModel !== null || d.pendingEffort !== null)
 
     return (
-      <Box flexDirection={isOneRow ? 'row' : 'column'} columnGap={3}>
+      <Box flexDirection={isOneRow ? 'row' : 'column'} columnGap={2}>
+        <Box columnGap={1}>{modelChips(el, $, d, models)}</Box>
+        {isOneRow && <Text dimColor>│</Text>}
         <Box columnGap={1}>
-          <Text dimColor>model</Text>
-          {modelChips(el, $, d, models)}
-        </Box>
-        <Box columnGap={1}>
-          <Text dimColor>effort</Text>
           {effortChips(el, $, d)}
-          <Text color={effortInk}>{meter(d.effort)}</Text>
-          {isQueued && <Text dimColor italic> applies after this turn</Text>}
+          {d.isEffortIgnored && <Text dimColor italic>n/a</Text>}
+          {isQueued && <Text dimColor italic>after turn</Text>}
         </Box>
       </Box>
     )
@@ -259,6 +260,7 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const d = await read($, dial)
     const live = familyOf(d.pendingModel ?? d.model)
+    const nameWidth = Math.max(...models.map(m => m.length))
     const effort = d.pendingEffort ?? d.effort
     const used = new Set<string>()
     const hotkeyFor = (alias: string): string | undefined => {
@@ -277,7 +279,7 @@ export const register: Register = (on, options) => {
             return (
               <Button key={`pick-model-${alias}`} plain hotkey={hotkeyFor(alias)} onPress={() => void setModel($, alias)}>
                 <Text color={isOn ? MODEL_INK[family] ?? 'claude' : undefined} bold={isOn}>
-                  {`${isOn ? '●' : '○'} ${isOn ? displayName(d.pendingModel ?? d.model) : titleCase(alias)}`}
+                  {`${isOn ? '●' : '○'} ${titleCase(alias).padEnd(nameWidth)}`}
                 </Text>
                 <Text dimColor>{`  ${MODEL_BLURB[family] ?? ''}`}</Text>
               </Button>
@@ -287,7 +289,7 @@ export const register: Register = (on, options) => {
         <Box flexDirection="column">
           <Text bold>Effort</Text>
           {EFFORTS.map((level, i) => {
-            const isOn = effort === level
+            const isOn = effort === level && !d.isEffortIgnored
             return (
               <Button key={`pick-effort-${level}`} plain hotkey={String(i + 1)} onPress={() => void setEffort($, level)}>
                 <Text color={isOn ? EFFORT_INK[level] : undefined} bold={isOn}>
