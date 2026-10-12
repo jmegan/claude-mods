@@ -309,7 +309,7 @@ export const findReply = (replies: readonly Reply[], token: string): Reply | nul
   const t = token.trim().toLowerCase()
   if (t === '') return null
   if (/^\d+$/.test(t)) return replies[Number(t) - 1] ?? null
-  return replies.find(r => r.id === t || r.label.toLowerCase() === t) ?? null
+  return replies.find(r => r.id.toLowerCase() === t || r.label.toLowerCase() === t) ?? null
 }
 
 /** A project label with control characters and the project marker removed, cut to 24 characters. */
@@ -326,13 +326,15 @@ const cleanProjectLabel = (label: string): string =>
  *   no glyph, behind the project marker the band adds.
  */
 export const addProjectReplies = (base: readonly Reply[], config: UserConfig): Reply[] => {
-  const ids = new Set(base.map(r => r.id))
+  // Ids compare without case, and the band's own `more` chip key is reserved, so a project id can
+  // neither shadow one of the person's buttons nor collide with the toggle.
+  const ids = new Set([...base.map(r => r.id.toLowerCase()), 'toggle-more'])
   const labels = new Set(base.map(r => r.label.toLowerCase()))
   const added: Reply[] = []
   for (const entry of config.replies) {
     const label = cleanProjectLabel(entry.label)
-    if (label === '' || ids.has(entry.id) || labels.has(label.toLowerCase())) continue
-    ids.add(entry.id)
+    if (label === '' || ids.has(entry.id.toLowerCase()) || labels.has(label.toLowerCase())) continue
+    ids.add(entry.id.toLowerCase())
     labels.add(label.toLowerCase())
     const plain = toReply({ id: entry.id, label, text: entry.text, send: entry.send, more: entry.more, when: entry.when }, 'project', false)
     added.push({ ...plain, source: 'project', style: 'outline', color: FALLBACK_COLOR, icon: '', key: '' })

@@ -435,3 +435,18 @@ test('icons off draws bare labels', async ($, on) => {
   expect((await ui.find({ key: 'qr-continue' }))?.text).toBe(' Continue ')
   await ui.unmount()
 })
+
+test('a project id cannot shadow a button by case, or take the toggle\'s key', () => {
+  const base = mergeReplies(DEFAULT_REPLIES, null)
+  const config = parseConfig(
+    JSON.stringify({
+      replies: [
+        { id: 'CONTINUE', label: 'Proceed now', text: 'x' },
+        { id: 'Toggle-More', label: 'Sneaky', text: 'x' },
+        { id: 'fine', label: 'Fine', text: 'ok' },
+      ],
+    }),
+  ).config!
+  const out = addProjectReplies(base, config)
+  expect(out.slice(base.length).map(r => r.id)).toEqual(['fine'])
+})
