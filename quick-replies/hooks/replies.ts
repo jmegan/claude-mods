@@ -40,6 +40,19 @@ export const inkOn = (background: string): string => {
 /** A reply as the config file spells it: a default's fields plus an optional hotkey. */
 export type UserReply = DefaultReply & { key?: string }
 
+/** What a merge starts from: the built-in defaults, or the replies a lower layer already made. */
+export type Seed = UserReply & { source?: Reply['source'] }
+
+/**
+ * True when a message ends by asking the person something: its last line ends in a question mark,
+ * ignoring closing quotes, brackets, emphasis marks and a trailing code fence.
+ */
+export const asksQuestion = (text: string): boolean => {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '' && !/^```/.test(l))
+  const last = lines.at(-1) ?? ''
+  return /\?[\s)\]"'\u201d\u2019*_`]*$/.test(last)
+}
+
 /** What the config file may hold. Every field is optional; unknown fields are ignored. */
 export type UserConfig = {
   mode: 'merge' | 'replace'
@@ -105,6 +118,7 @@ const readEntry = (raw: unknown, index: number, problems: string[]): UserReply |
     more: raw.more === true ? true : undefined,
     style: raw.style === 'solid' || raw.style === 'outline' ? raw.style : undefined,
     color: str(raw.color) ?? undefined,
+    when: raw.when === 'asking' ? 'asking' : undefined,
     key: key !== null && /^[a-z0-9]$/.test(key) ? key : undefined,
   }
 }
@@ -140,6 +154,7 @@ export const parseConfig = (text: string): { config: UserConfig | null; problems
         more: typeof fields.more === 'boolean' ? fields.more : undefined,
         style: fields.style === 'solid' || fields.style === 'outline' ? fields.style : undefined,
         color: str(fields.color) ?? undefined,
+        when: fields.when === 'asking' || fields.when === 'always' ? fields.when : undefined,
         key: key !== null && /^[a-z0-9]$/.test(key) ? key : undefined,
       }
     }
@@ -158,7 +173,7 @@ export const parseConfig = (text: string): { config: UserConfig | null; problems
   }
 }
 
-const toReply = (entry: UserReply, source: Reply['source']): Reply => ({
+const toReply = (entry: Seed, fallback: Reply['source']): Reply => ({
   id: entry.id,
   label: entry.label,
   text: entry.text,
@@ -166,12 +181,13 @@ const toReply = (entry: UserReply, source: Reply['source']): Reply => ({
   more: entry.more === true,
   style: entry.style ?? 'outline',
   color: resolveColor(entry.color ?? FALLBACK_COLOR),
+  when: entry.when === 'asking' ? 'asking' : 'always',
   key: entry.key ?? '',
-  source,
+  source: entry.source ?? fallback,
 })
 
 /** Lays a patch's defined fields over a reply; an undefined field leaves the original. */
-const withDefined = (reply: UserReply, patch: Partial<UserReply> | undefined): UserReply => {
+const withDefined = (reply: Seed, patch: Partial<UserReply> | undefined): Seed => {
   if (patch === undefined) return reply
   const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
   return { ...reply, ...defined }
@@ -183,7 +199,7 @@ const withDefined = (reply: UserReply, patch: Partial<UserReply> | undefined): U
  * A user reply with a default's id replaces that default; `hide` removes ids; `mode: "replace"`
  * drops the defaults altogether. Ids stay unique, and the first of a duplicate wins.
  */
-export const mergeReplies = (defaults: readonly DefaultReply[], config: UserConfig | null): Reply[] => {
+export const mergeReplies = (defaults: readonly Seed[], config: UserConfig | null): Reply[] => {
   if (config === null) return assignKeys(defaults.map(d => toReply(d, 'default')))
   const base = defaults.map(d => toReply(withDefined(d, config.patch[d.id]), 'default'))
 
@@ -236,4 +252,18 @@ export const findReply = (replies: readonly Reply[], token: string): Reply | nul
   if (t === '') return null
   if (/^\d+$/.test(t)) return replies[Number(t) - 1] ?? null
   return replies.find(r => r.id === t || r.label.toLowerCase() === t) ?? null
+}
+
+/**
+ * Adds a project file's buttons to the person's own, and nothing more. The file is not trusted the way
+ * the person's own config is, so it can never replace, patch, hide or reorder an existing button
+ * (a button reusing an existing id is dropped), and its buttons are marked `project`.
+ */
+export const addProjectReplies = (base: readonly Reply[], config: UserConfig): Reply[] => {
+  const taken = new Set(base.map(r => r.id))
+  const added = config.replies
+    .filter(r => !taken.has(r.id))
+    .map(r => toReply({ ...r, key: undefined }, 'project'))
+    .map(r => ({ ...r, source: 'project' as const }))
+  return assignKeys([...base, ...added])
 }

@@ -54,9 +54,10 @@ Then clean up:
 2. **Write the button text as a complete instruction** to Claude, not the person's shorthand. `commit` becomes
    "Commit just the changes you made in this session." Keep the person's own phrasing where it carries a rule they care about.
 3. **Pick a label of 14 characters or fewer** in sentence case.
-4. **Set `send: false`** when the reply is a start the person must finish ("Explain that more simply: ").
-5. **Set `more: true`** for buttons used less than about once a week, so the main row stays short (aim for 8 or fewer in the main row).
-6. **Cluster, don't copy.** For a family like "use X to verify", propose one button that covers it.
+4. **Set `when: "asking"`** for a reply that only makes sense after Claude asks something ("No, don't do that").
+5. **Set `send: false`** when the reply is a start the person must finish ("Explain that more simply: ").
+6. **Set `more: true`** for buttons used less than about once a week, so the main row stays short (aim for 8 or fewer in the main row).
+7. **Cluster, don't copy.** For a family like "use X to verify", propose one button that covers it.
 
 ## 4. Propose, then write
 

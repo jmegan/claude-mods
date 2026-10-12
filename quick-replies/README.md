@@ -9,6 +9,10 @@ often (Continue, Ask me questions, Try again, Commit), as your own words.
 - `more N ›` expands the less-used buttons.
 - A button marked `send: false` adds its text to your draft instead, so you can finish the sentence.
 - While Claude works, a click queues the reply for after the turn.
+- **No** appears only while Claude's last message ends in a question, and goes once you reply. Any button
+  can do the same with `"when": "asking"`.
+- `/qr` shows how often you have used each button, so you can prune the ones you never press. The row never
+  re-sorts by use, because a button that moves under your pointer is worse than an unsorted row.
 
 ### Commands
 
@@ -35,7 +39,14 @@ See `quick-replies.example.json`. Every field is optional:
 | `hotkeys` | `auto` (default) gives each button a hotkey; `off` assigns none (an explicit `key` still counts) |
 | `hide` | Ids of built-in buttons to remove |
 | `patch` | Overrides for a built-in by id: `{ "stop": { "more": true } }` |
-| `replies` | Your buttons. Required: `label`, `text`. Optional: `id`, `send`, `more`, `style` (`solid`/`outline`), `color`, `key` |
+| `replies` | Your buttons. Required: `label`, `text`. Optional: `id`, `send`, `more`, `when` (`always`/`asking`), `style` (`solid`/`outline`), `color`, `key` |
+
+### Project buttons (opt in)
+
+Set the **Project buttons** option to `on` to also read `.claude/quick-replies.json` in the project folder.
+It is off by default because a cloned repository could ship a button that sends text as you. A project file
+can only **add** buttons: it cannot replace, patch, hide or reorder yours, and a button that reuses one of
+your ids is dropped. Its buttons carry a `◆` and `/qr` marks them `[project]`.
 
 ### Colors
 

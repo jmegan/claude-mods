@@ -13,7 +13,10 @@ export type Reply = {
   color: string
   /** The hotkey (one digit or lowercase letter), explicit or assigned. */
   key: string
-  source: 'default' | 'user'
+  /** `always` shows the button all the time; `asking` only while Claude's last message asks a question. */
+  when: 'always' | 'asking'
+  /** Where it came from: the built-ins, the user's file, or this project's file. */
+  source: 'default' | 'user' | 'project'
 }
 
 /** What the band draws from: the merged buttons and anything wrong with the config file. */
@@ -29,6 +32,8 @@ declare module 'claude-code' {
       board: Board
       isHidden: boolean
       isMoreOpen: boolean
+      /** True while Claude's last message ends in a question. */
+      isAsking: boolean
     }
   }
 }

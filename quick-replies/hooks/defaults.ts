@@ -6,6 +6,8 @@ export type DefaultReply = {
   send?: boolean
   more?: boolean
   style?: 'solid' | 'outline'
+  /** `asking` shows the button only while Claude's last message asks a question. Default `always`. */
+  when?: 'always' | 'asking'
   /** A role (go, ask, info, caution, stop, git, plan, agent, neutral), a theme key, or a raw color. */
   color?: string
 }
@@ -26,6 +28,13 @@ export const DEFAULT_REPLIES: readonly DefaultReply[] = [
     color: 'ask',
   },
   { id: 'yes', label: 'Yes', text: 'Yes.', color: 'go' },
+  {
+    id: 'no',
+    label: 'No',
+    text: "No, don't do that. Tell me what else you would suggest.",
+    when: 'asking',
+    color: 'stop',
+  },
   {
     id: 'try-again',
     label: 'Try again',
