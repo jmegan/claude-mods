@@ -9,6 +9,11 @@
       "name": "model-dial",
       "source": "./model-dial",
       "description": "A clickable model and effort switcher above the prompt, plus /dial."
+    },
+    {
+      "name": "quick-replies",
+      "source": "./quick-replies",
+      "description": "Clickable quick-reply buttons above the prompt, a /qr command, and a skill that mines your history for new ones."
     }
   ]
 }

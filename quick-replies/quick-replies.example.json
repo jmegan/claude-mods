@@ -1,0 +1,26 @@
+{
+  "mode": "merge",
+  "order": "yours-first",
+  "hide": ["plan-first"],
+  "patch": {
+    "stop": { "more": true },
+    "verify": { "label": "Verify", "color": "caution" }
+  },
+  "replies": [
+    {
+      "id": "ship-it",
+      "label": "Ship it",
+      "text": "Commit just your changes and push the branch.",
+      "style": "solid",
+      "color": "go",
+      "key": "s"
+    },
+    {
+      "id": "explain-more",
+      "label": "Explain",
+      "text": "Explain that more simply, with an example: ",
+      "send": false,
+      "more": true
+    }
+  ]
+}

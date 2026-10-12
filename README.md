@@ -5,12 +5,14 @@ John Egan's personal Claude Code mods, published as the `egan-dev-mods` marketpl
 | Mod | What it does |
 | --- | --- |
 | `model-dial` | Clickable model and effort chips above the prompt, plus `/dial [model] [effort]`. |
+| `quick-replies` | Clickable reply buttons above the prompt (Continue, Ask me, Try again, your own), `/qr`, and a skill that mines your history for suggestions. |
 
 ## Install
 
 ```bash
 claude plugin marketplace add jmegan/claude-mods
 claude plugin install model-dial@egan-dev-mods --scope user
+claude plugin install quick-replies@egan-dev-mods --scope user
 ```
 
 To edit a mod live, add the local clone instead (`claude plugin marketplace add ~/Developer/claude-mods`), edit the source, then run `/reload-plugins`.
@@ -20,4 +22,5 @@ To edit a mod live, add the local clone instead (`claude plugin marketplace add 
 ```bash
 claude plugin validate .
 claude plugin test model-dial
+claude plugin test quick-replies
 ```

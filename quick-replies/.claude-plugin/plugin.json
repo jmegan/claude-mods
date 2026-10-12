@@ -1,0 +1,15 @@
+{
+  "name": "quick-replies",
+  "version": "0.1.0",
+  "description": "Clickable quick-reply buttons above the prompt (Continue, Ask me questions, Try again, and your own), configured from a local JSON file, plus a skill that mines your own history for suggestions.",
+  "author": { "name": "John Egan" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "configPath": {
+      "type": "string",
+      "title": "Config file",
+      "description": "Path to your quick-replies JSON file. Leave empty to use quick-replies.json in your Claude config folder.",
+      "default": ""
+    }
+  }
+}
