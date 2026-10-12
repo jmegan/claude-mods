@@ -18,7 +18,56 @@ export const COLOR_ROLES: Readonly<Record<string, string>> = {
   neutral: 'subtle',
 }
 
-/** The color of a reply that names none. */
+/**
+ * What a button means, read from its words, so a button the person adds without a color still gets a
+ * fitting one. The first rule that matches the label wins; if none does, the first 80 characters of the
+ * text are tried the same way. Roles are the ones in COLOR_ROLES.
+ */
+const ROLE_RULES: readonly (readonly [role: string, pattern: RegExp])[] = [
+  ['go', /^(yes|continue|go|ok|okay|proceed|approve|do it|ship)\b/],
+  ['stop', /^(no|stop|cancel|abort|revert|undo|don't|dont)\b/],
+  ['git', /\b(commit|push|merge|pull request|pr|branch|rebase|git)\b/],
+  ['plan', /\b(plan|design|outline)\b/],
+  ['agent', /\b(agents?|subagents?|delegate|parallel|your call|best judg(e)?ment)\b/],
+  ['caution', /\b(verify|test|tests|check|review|lint|audit|simplify|fix|typecheck)\b/],
+  ['ask', /\b(ask|question|clarify|decide)\b/],
+  ['info', /\b(status|next|summari[sz]e|explain|docs|look up|research|try again|retry|why)\b/],
+]
+
+export const inferRole = (label: string, text: string): string => {
+  for (const source of [label.toLowerCase(), text.toLowerCase().slice(0, 80)]) {
+    for (const [role, pattern] of ROLE_RULES) if (pattern.test(source)) return role
+  }
+  return 'neutral'
+}
+
+/**
+ * The glyph each color role draws before its label, so a button's kind shows without relying on color
+ * alone. Every glyph is a single cell wide and has no emoji presentation, so rows keep their alignment.
+ */
+export const ROLE_ICONS: Readonly<Record<string, string>> = {
+  success: '✓',
+  permission: '?',
+  suggestion: 'ⓘ',
+  warning: '!',
+  error: '■',
+  merged: '±',
+  planMode: '☰',
+  claude: '✦',
+  subtle: '·',
+}
+
+/** A reply's glyph: its own `icon`, else the one for its color role, else none (a raw color has no role). */
+export const iconOf = (reply: Pick<Reply, 'icon' | 'color'>): string => reply.icon || (ROLE_ICONS[reply.color] ?? '')
+
+/** Keeps a glyph to two characters with no control characters; anything else is no glyph. */
+const cleanIcon = (value: unknown): string | undefined => {
+  const text = typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, '').trim() : ''
+  const glyph = [...text].slice(0, 2).join('')
+  return glyph === '' ? undefined : glyph
+}
+
+/** The color of a reply that names none, when smart colors are off. */
 export const FALLBACK_COLOR = COLOR_ROLES.neutral ?? 'subtle'
 
 /** Turns a role into its theme key; anything else (a theme key, a name, hex) is kept as written. */
@@ -57,6 +106,10 @@ export const asksQuestion = (text: string): boolean => {
 export type UserConfig = {
   mode: 'merge' | 'replace'
   order: 'yours-first' | 'defaults-first'
+  /** `false` turns off inferred colors and state-based emphasis. Default true. */
+  isSmart: boolean
+  /** `false` hides the glyph before each label. Default true. */
+  hasIcons: boolean
   /** `off` assigns no automatic hotkeys; a reply's own `key` still counts. */
   hotkeys: 'auto' | 'off'
   hide: string[]
@@ -118,6 +171,7 @@ const readEntry = (raw: unknown, index: number, problems: string[]): UserReply |
     more: raw.more === true ? true : undefined,
     style: raw.style === 'solid' || raw.style === 'outline' ? raw.style : undefined,
     color: str(raw.color) ?? undefined,
+    icon: cleanIcon(raw.icon),
     when: raw.when === 'asking' ? 'asking' : undefined,
     key: key !== null && /^[a-z0-9]$/.test(key) ? key : undefined,
   }
@@ -154,6 +208,7 @@ export const parseConfig = (text: string): { config: UserConfig | null; problems
         more: typeof fields.more === 'boolean' ? fields.more : undefined,
         style: fields.style === 'solid' || fields.style === 'outline' ? fields.style : undefined,
         color: str(fields.color) ?? undefined,
+        icon: cleanIcon(fields.icon),
         when: fields.when === 'asking' || fields.when === 'always' ? fields.when : undefined,
         key: key !== null && /^[a-z0-9]$/.test(key) ? key : undefined,
       }
@@ -165,6 +220,8 @@ export const parseConfig = (text: string): { config: UserConfig | null; problems
       mode: raw.mode === 'replace' ? 'replace' : 'merge',
       order: raw.order === 'defaults-first' ? 'defaults-first' : 'yours-first',
       hotkeys: raw.hotkeys === 'off' ? 'off' : 'auto',
+      isSmart: raw.smartColors !== false,
+      hasIcons: raw.icons !== 'off',
       hide,
       patch,
       replies,
@@ -173,14 +230,15 @@ export const parseConfig = (text: string): { config: UserConfig | null; problems
   }
 }
 
-const toReply = (entry: Seed, fallback: Reply['source']): Reply => ({
+const toReply = (entry: Seed, fallback: Reply['source'], isSmart = true): Reply => ({
   id: entry.id,
   label: entry.label,
   text: entry.text,
   send: entry.send !== false,
   more: entry.more === true,
   style: entry.style ?? 'outline',
-  color: resolveColor(entry.color ?? FALLBACK_COLOR),
+  color: resolveColor(entry.color ?? (isSmart ? inferRole(entry.label, entry.text) : FALLBACK_COLOR)),
+  icon: entry.icon ?? '',
   when: entry.when === 'asking' ? 'asking' : 'always',
   key: entry.key ?? '',
   source: entry.source ?? fallback,
@@ -201,9 +259,9 @@ const withDefined = (reply: Seed, patch: Partial<UserReply> | undefined): Seed =
  */
 export const mergeReplies = (defaults: readonly Seed[], config: UserConfig | null): Reply[] => {
   if (config === null) return assignKeys(defaults.map(d => toReply(d, 'default')))
-  const base = defaults.map(d => toReply(withDefined(d, config.patch[d.id]), 'default'))
+  const base = defaults.map(d => toReply(withDefined(d, config.patch[d.id]), 'default', config.isSmart))
 
-  const mine = config.replies.map(r => toReply(r, 'user'))
+  const mine = config.replies.map(r => toReply(r, 'user', config.isSmart))
   const hidden = new Set(config.hide)
   const keep = (r: Reply): boolean => !hidden.has(r.id)
 
@@ -254,16 +312,57 @@ export const findReply = (replies: readonly Reply[], token: string): Reply | nul
   return replies.find(r => r.id === t || r.label.toLowerCase() === t) ?? null
 }
 
+/** A project label with control characters and the project marker removed, cut to 24 characters. */
+const cleanProjectLabel = (label: string): string =>
+  label.replace(/[\u0000-\u001f\u007f\u25c6]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24)
+
 /**
  * Adds a project file's buttons to the person's own, and nothing more. The file is not trusted the way
- * the person's own config is, so it can never replace, patch, hide or reorder an existing button
- * (a button reusing an existing id is dropped), and its buttons are marked `project`.
+ * the person's own config is, so its buttons are visually inert:
+ *
+ * - it can never replace, patch, hide or reorder an existing button, and one reusing an existing id or
+ *   label is dropped, so it cannot pose as one of the person's own;
+ * - it cannot choose a color, style, icon or hotkey: its buttons draw in the neutral outline style with
+ *   no glyph, behind the project marker the band adds.
  */
 export const addProjectReplies = (base: readonly Reply[], config: UserConfig): Reply[] => {
-  const taken = new Set(base.map(r => r.id))
-  const added = config.replies
-    .filter(r => !taken.has(r.id))
-    .map(r => toReply({ ...r, key: undefined }, 'project'))
-    .map(r => ({ ...r, source: 'project' as const }))
+  const ids = new Set(base.map(r => r.id))
+  const labels = new Set(base.map(r => r.label.toLowerCase()))
+  const added: Reply[] = []
+  for (const entry of config.replies) {
+    const label = cleanProjectLabel(entry.label)
+    if (label === '' || ids.has(entry.id) || labels.has(label.toLowerCase())) continue
+    ids.add(entry.id)
+    labels.add(label.toLowerCase())
+    const plain = toReply({ id: entry.id, label, text: entry.text, send: entry.send, more: entry.more, when: entry.when }, 'project', false)
+    added.push({ ...plain, source: 'project', style: 'outline', color: FALLBACK_COLOR, icon: '', key: '' })
+  }
   return assignKeys([...base, ...added])
+}
+/** Uses in all before a never-used button counts as stale: too few and "never used" means nothing yet. */
+const STALE_AFTER_USES = 30
+
+export type LookContext = {
+  isSmart: boolean
+  /** Claude's last message asks a question. */
+  isAsking: boolean
+  /** A turn is running, so a press queues the reply. */
+  isWorking: boolean
+  uses: Readonly<Record<string, number>>
+}
+
+/**
+ * How one button draws right now. Only the style and the dimming change, never the label or its
+ * padding, so no button moves under the pointer.
+ *
+ * - While Claude asks, the yes and no family (and any \`when: "asking"\` button) turns solid.
+ * - While a turn runs, every button dims: a press queues the reply for after the turn.
+ * - Once there is enough history, a button that was never pressed dims.
+ */
+export const lookOf = (reply: Reply, context: LookContext): { style: Reply['style']; isDim: boolean } => {
+  if (!context.isSmart) return { style: reply.style, isDim: false }
+  const isPrompted = context.isAsking && (reply.when === 'asking' || reply.color === 'success' || reply.color === 'error')
+  const total = Object.values(context.uses).reduce((sum, n) => sum + n, 0)
+  const isStale = !isPrompted && reply.when === 'always' && reply.source !== 'project' && total >= STALE_AFTER_USES && (context.uses[reply.id] ?? 0) === 0
+  return { style: isPrompted ? 'solid' : reply.style, isDim: context.isWorking || isStale }
 }

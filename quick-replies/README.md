@@ -37,16 +37,18 @@ See `quick-replies.example.json`. Every field is optional:
 | `mode` | `merge` (default) adds to the built-in buttons; `replace` uses only yours |
 | `order` | `yours-first` (default) or `defaults-first` |
 | `hotkeys` | `auto` (default) gives each button a hotkey; `off` assigns none (an explicit `key` still counts) |
+| `smartColors` | `true` (default). `false` turns off inferred colors and state-based emphasis |
+| `icons` | `"on"` (default) or `"off"` to hide the glyph before each label |
 | `hide` | Ids of built-in buttons to remove |
 | `patch` | Overrides for a built-in by id: `{ "stop": { "more": true } }` |
-| `replies` | Your buttons. Required: `label`, `text`. Optional: `id`, `send`, `more`, `when` (`always`/`asking`), `style` (`solid`/`outline`), `color`, `key` |
+| `replies` | Your buttons. Required: `label`, `text`. Optional: `id`, `send`, `more`, `when` (`always`/`asking`), `style` (`solid`/`outline`), `color`, `icon`, `key` |
 
 ### Project buttons (opt in)
 
 Set the **Project buttons** option to `on` to also read `.claude/quick-replies.json` in the project folder.
 It is off by default because a cloned repository could ship a button that sends text as you. A project file
 can only **add** buttons: it cannot replace, patch, hide or reorder yours, and a button that reuses one of
-your ids is dropped. Its buttons carry a `◆` and `/qr` marks them `[project]`.
+your ids is dropped. Its buttons carry a `◆` and `/qr` marks them `[project]`. They are visually inert: no color, style, icon or hotkey of their own, and a label that copies one of yours is dropped.
 
 ### Colors
 
@@ -64,6 +66,18 @@ theme (light, dark, color-blind), and a solid chip picks readable text on its ow
 | `plan` | `planMode` | Plan first |
 | `agent` | `claude` | Subagents, your call |
 | `neutral` | `subtle` | Everything else (the default) |
+
+### Smart colors and icons
+
+- **No color needed.** A button you add with no `color` gets a role inferred from its label and text
+  ("Push the branch" becomes `git`). Name a color to override it.
+- **The color follows the state.** While Claude asks a question, Yes, No and Continue turn solid. While a
+  turn runs, every button dims, because a press queues the reply. After about 30 uses in total, a button
+  you never press fades. Labels and padding never change, so nothing moves under your pointer.
+- **An icon shows each button's kind**, so color is never the only signal (a color-blind theme, a dim
+  terminal). Each role has a glyph: ✓ go, ? ask, ⓘ info, ! caution, ■ stop, ± git, ☰ plan, ✦ agent.
+  Set `icon` (up to two characters) on a button to choose your own. Glyphs are single-cell and not emoji,
+  so rows stay aligned.
 
 ## Works with other mods
 

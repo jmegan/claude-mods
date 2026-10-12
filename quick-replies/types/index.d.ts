@@ -11,6 +11,8 @@ export type Reply = {
   /** `solid` is a filled pill; `outline` is colored text. */
   style: 'solid' | 'outline'
   color: string
+  /** A one- or two-character glyph drawn before the label ('' for none). */
+  icon: string
   /** The hotkey (one digit or lowercase letter), explicit or assigned. */
   key: string
   /** `always` shows the button all the time; `asking` only while Claude's last message asks a question. */
@@ -24,6 +26,10 @@ export type Board = {
   replies: Reply[]
   configPath: string
   problems: string[]
+  /** False when the config sets `smartColors: false`: no inferred colors, no state-based emphasis. */
+  isSmart: boolean
+  /** False when the config sets `icons: "off"`. */
+  hasIcons: boolean
 }
 
 declare module 'claude-code' {
@@ -34,6 +40,8 @@ declare module 'claude-code' {
       isMoreOpen: boolean
       /** True while Claude's last message ends in a question. */
       isAsking: boolean
+      /** How often each button was used, by id, across sessions. */
+      uses: Record<string, number>
     }
   }
 }

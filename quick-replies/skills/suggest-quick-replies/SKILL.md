@@ -76,11 +76,12 @@ missing), keeping existing entries and key order. Fields:
   "more": false,
   "style": "outline",
   "color": "info",
+  "icon": "ⓘ",
   "key": "t"
 }
 ```
 
-`label` and `text` are required; the rest are optional. `color` is a role that follows the person's theme:
+`label` and `text` are required; the rest are optional. Leave `color` and `icon` out unless the default is wrong: both are inferred from the button's words. `color` is a role that follows the person's theme:
 `go`, `ask`, `info`, `caution`, `stop`, `git`, `plan`, `agent` or `neutral` (a theme key or hex also works). To change a default instead of adding one, use
 `patch` (`{ "stop": { "more": true } }`); to remove one, list its id in `hide`.
 

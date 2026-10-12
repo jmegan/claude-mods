@@ -8,6 +8,8 @@ export type DefaultReply = {
   style?: 'solid' | 'outline'
   /** `asking` shows the button only while Claude's last message asks a question. Default `always`. */
   when?: 'always' | 'asking'
+  /** A glyph drawn before the label. Left out, the color's role picks one. */
+  icon?: string
   /** A role (go, ask, info, caution, stop, git, plan, agent, neutral), a theme key, or a raw color. */
   color?: string
 }
@@ -15,6 +17,7 @@ export type DefaultReply = {
 export const DEFAULT_REPLIES: readonly DefaultReply[] = [
   {
     id: 'continue',
+    icon: '»',
     label: 'Continue',
     text: "Yes, go ahead with everything you just proposed and keep going. Don't pause to ask again unless you're blocked or the next step needs a decision only I can make.",
     style: 'solid',
@@ -37,6 +40,7 @@ export const DEFAULT_REPLIES: readonly DefaultReply[] = [
   },
   {
     id: 'try-again',
+    icon: '↻',
     label: 'Try again',
     text: "That didn't work. Try again, and tell me what you are changing this time.",
     color: 'info',
@@ -49,6 +53,7 @@ export const DEFAULT_REPLIES: readonly DefaultReply[] = [
   },
   {
     id: 'whats-next',
+    icon: '→',
     label: "What's next?",
     text: "What's next? List the open items and your recommended order.",
     color: 'info',
@@ -73,6 +78,7 @@ export const DEFAULT_REPLIES: readonly DefaultReply[] = [
   },
   {
     id: 'commit',
+    icon: '±',
     label: 'Commit',
     text: 'Commit just the changes you made in this session, with a clear message.',
     more: true,

@@ -3,17 +3,21 @@ import type { ElementTable, EngineInterface, PluginOptions, Register } from 'cla
 
 import type { Board, Reply } from '../types'
 import { DEFAULT_REPLIES } from './defaults'
-import { addProjectReplies, asksQuestion, findReply, idOf, inkOn, mergeReplies, parseConfig, rawEntryId } from './replies'
+import { addProjectReplies, asksQuestion, findReply, iconOf, idOf, inkOn, lookOf, mergeReplies, parseConfig, rawEntryId } from './replies'
+import type { LookContext } from './replies'
 import type { UserConfig } from './replies'
 
 const board = atom({ plugin: 'quick-replies', key: 'board' } as const, {
   replies: [],
   configPath: '',
   problems: [],
+  isSmart: true,
+  hasIcons: true,
 } satisfies Board)
 const isHidden = atom({ plugin: 'quick-replies', key: 'isHidden' } as const, false)
 const isMoreOpen = atom({ plugin: 'quick-replies', key: 'isMoreOpen' } as const, false)
 const isAsking = atom({ plugin: 'quick-replies', key: 'isAsking' } as const, false)
+const usesAtom = atom({ plugin: 'quick-replies', key: 'uses' } as const, {} as Record<string, number>)
 
 const FILE_NAME = 'quick-replies.json'
 const USES_KEY = 'uses'
@@ -68,7 +72,7 @@ const load = async ($: EngineInterface, path: string, projectPath: string | null
       if (parsed.config !== null) replies = addProjectReplies(replies, parsed.config)
     }
   }
-  const next: Board = { replies, configPath: path, problems }
+  const next: Board = { replies, configPath: path, problems, isSmart: config?.isSmart !== false, hasIcons: config?.hasIcons !== false }
   await update($, board, () => next)
   return next
 }
@@ -82,7 +86,9 @@ const readUses = async ($: EngineInterface): Promise<Record<string, number>> => 
 
 const bumpUse = async ($: EngineInterface, id: string): Promise<void> => {
   const uses = await readUses($)
-  await $.store.set(USES_KEY, { ...uses, [id]: (uses[id] ?? 0) + 1 })
+  const next = { ...uses, [id]: (uses[id] ?? 0) + 1 }
+  await $.store.set(USES_KEY, next)
+  await update($, usesAtom, () => next)
 }
 
 /** Sends the reply as the person's own words, or adds it to the draft for the person to finish. */
@@ -103,13 +109,21 @@ const fire = async ($: EngineInterface, reply: Reply): Promise<void> => {
   }
 }
 
-const Chip = ({ Button, Text }: El, reply: Reply, onPress: () => void) => {
+const Chip = (
+  { Button, Text }: El,
+  reply: Reply,
+  look: { style: Reply['style']; isDim: boolean },
+  hasIcons: boolean,
+  onPress: () => void,
+) => {
   // A button from the project's file is marked, so it is never mistaken for one of the person's own.
-  const label = reply.source === 'project' ? ` ◆ ${reply.label} ` : ` ${reply.label} `
-  if (reply.style === 'solid') {
+  const icon = hasIcons ? iconOf(reply) : ''
+  const mark = reply.source === 'project' ? '◆ ' : icon === '' ? '' : `${icon} `
+  const label = ` ${mark}${reply.label} `
+  if (look.style === 'solid') {
     return (
       <Button key={`qr-${reply.id}`} plain hotkey={reply.key || undefined} onPress={onPress}>
-        <Text backgroundColor={reply.color} color={inkOn(reply.color)} bold>
+        <Text backgroundColor={reply.color} color={inkOn(reply.color)} bold dimColor={look.isDim}>
           {label}
         </Text>
       </Button>
@@ -117,7 +131,7 @@ const Chip = ({ Button, Text }: El, reply: Reply, onPress: () => void) => {
   }
   return (
     <Button key={`qr-${reply.id}`} plain hotkey={reply.key || undefined} onPress={onPress}>
-      <Text color={reply.color} hover={{ scope: `qr-${reply.id}`, bold: true, underline: true }}>
+      <Text color={reply.color} dimColor={look.isDim} hover={{ scope: `qr-${reply.id}`, bold: true, underline: true, dimColor: false }}>
         {label}
       </Text>
     </Button>
@@ -181,6 +195,8 @@ export const register: Register = (on, options) => {
       argumentHint: '[number|id | add | remove | reload | hide | show | suggest | path]',
     })
     const loaded = await refresh($, options)
+    await update($, usesAtom, () => ({}))
+    await readUses($).then(uses => update($, usesAtom, () => uses)).catch(() => undefined)
     const stored = await $.store.get('isHidden')
     await update($, isHidden, () => stored === true)
     if (loaded.problems.length > 0) $.ui.toast(`quick-replies: ${loaded.problems[0]} in ${loaded.configPath}`)
@@ -216,7 +232,7 @@ export const register: Register = (on, options) => {
         const ask = r.when === 'asking' ? ' [when asked]' : ''
         const from = r.source === 'project' ? ' [project]' : ''
         const used = uses[r.id] ? `  ·  used ${uses[r.id]}×` : ''
-        return `${String(i + 1).padStart(2)}. ${r.label}${where}${how}${ask}${from}  ·  key ${r.key || '-'}  ·  ${r.id}${used}`
+        return `${String(i + 1).padStart(2)}. ${r.label}${where}${how}${ask}${from}  ·  key ${r.key || '-'}  ·  ${r.id}  ·  ${r.color}${used}`
       })
       const problems = current.problems.map(p => `⚠ ${p}`)
       return { text: [`Quick replies (${current.configPath}):`, ...lines, ...problems, '', HELP].join('\n') }
@@ -299,6 +315,8 @@ export const register: Register = (on, options) => {
     const { Box, Text, Button } = el
     const isOpen = await read($, isMoreOpen)
     const asking = await read($, isAsking)
+    const uses = await read($, usesAtom)
+    const context: LookContext = { isSmart: current.isSmart, isAsking: asking, isWorking: e.props.isWorking, uses }
     const visible = current.replies.filter(r => r.when === 'always' || asking)
     const primary = visible.filter(r => !r.more)
     const extra = visible.filter(r => r.more)
@@ -309,7 +327,7 @@ export const register: Register = (on, options) => {
     const beneath = await next(e)
     const mine = (
       <Box key="quick-replies" flexDirection="row" flexWrap="wrap" columnGap={1}>
-        {shown.map(r => Chip(el, r, () => void fire($, r)))}
+        {shown.map(r => Chip(el, r, lookOf(r, context), current.hasIcons, () => void fire($, r)))}
         {extra.length > 0 && (
           <Button key="qr-toggle-more" plain onPress={() => update($, isMoreOpen, open => !open)}>
             <Text dimColor>{isOpen ? ' ‹ less ' : ` more ${extra.length} › `}</Text>
