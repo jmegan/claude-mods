@@ -3,7 +3,7 @@
   "owner": {
     "name": "John Egan"
   },
-  "description": "John Egan's personal Claude Code mods.",
+  "description": "Small, configurable Claude Code mods by John Egan.",
   "plugins": [
     {
       "name": "model-dial",
