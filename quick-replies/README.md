@@ -3,6 +3,15 @@
 Clickable reply buttons above the Claude Code prompt. One click sends the text you type most
 often (Continue, Ask me questions, Try again, Commit), as your own words.
 
+## Install
+
+```text
+/plugin install quick-replies --marketplace jmegan/claude-mods
+```
+
+Answer `y` to add the marketplace, then pick a scope. Each person gets their own config file and their own
+history-based suggestions.
+
 ## Use
 
 - Click a button, or press `ctrl+x`, `Tab` to focus the band, then its hotkey.
@@ -103,11 +112,6 @@ claude plugin test .
 
 ## Share
 
-Put this folder in a GitHub repository with `.claude-plugin/marketplace.json`:
-
-```json
-{ "name": "quick-replies", "owner": { "name": "<you>" }, "plugins": [{ "name": "quick-replies", "source": "./" }] }
-```
-
-Others install it with `/plugin install quick-replies --marketplace <owner>/<repo>`.
-Each person gets their own config file and their own history-based suggestions.
+This mod is listed in the repository's `.claude-plugin/marketplace.json`, so the install line above is all
+anyone needs. To publish a copy from a repository of its own, add a marketplace file that lists it with
+`"source": "./"`. The [repository README](../README.md#share-a-mod) shows the format.
